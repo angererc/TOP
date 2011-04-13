@@ -47,6 +47,10 @@ public abstract class Permissions<T> {
 		return new KeyChainException("LinkKeychainsException: Cannot link slave key chain " + slaveKey + " to master key chain " + masterKey + " in now " + now + "; now does not own the slave key");
 	}
 	
+	private KeyChainException newUnlinkKeychainsException(T now, KeyChain slaveKey) {
+		return new KeyChainException("UnlinkKeychainsException: Cannot unlink slave key chain " + slaveKey + " in now " + now + "; now does not own the slave key");
+	}
+	
 	private KeyChainException newReadAccessException(T now, KeyChain key, Object o) {
 		return new KeyChainException("ReadAccessException: " + now + " cannot read " + o + "; KeyChain=" + key);
 	}
@@ -70,6 +74,8 @@ public abstract class Permissions<T> {
 		abstract KeyChain add(T now, T key); //in now, add key; now must be able to read
 		abstract KeyChain replace(T now, T with);
 		abstract boolean isOwnedBy(T now); //true only if key chain is a single key chain and now is in it
+		abstract boolean isImmutable();
+		abstract boolean isShared();
 	}
 	
 	private class SingleKeyChain extends KeyChain {
@@ -115,6 +121,16 @@ public abstract class Permissions<T> {
 				throw newReplaceKeyException(now, this, with);
 			}
 			return new SingleKeyChain(with);
+		}
+		
+		@Override
+		public boolean isImmutable() {
+			return false;
+		}
+		
+		@Override
+		public boolean isShared() {
+			return false;
 		}
 		
 		@Override
@@ -178,8 +194,65 @@ public abstract class Permissions<T> {
 		}
 		
 		@Override
+		public boolean isImmutable() {
+			return false;
+		}
+		
+		@Override
+		public boolean isShared() {
+			return false;
+		}
+		
+		@Override
 		public String toString() {
 			return "MultiKeyChain(" + tasks + ")";
+		}
+	}
+	
+	private class DelegatingKeyChain extends KeyChain {
+		final Object target;
+		
+		DelegatingKeyChain(Object o) {
+			this.target = o;
+		}
+		@Override
+		KeyChain add(T now, T key) {
+			throw newAddKeyException(now, this, key);
+		}
+
+		@Override
+		void checkRead(T now, Object o) {
+			getOrCreateKeyChain(now, target).checkRead(now, o);
+		}
+
+		@Override
+		void checkWrite(T now, Object o) {
+			getOrCreateKeyChain(now, target).checkWrite(now, o);
+		}
+
+		@Override
+		boolean isOwnedBy(T now) {
+			return getOrCreateKeyChain(now, target).isOwnedBy(now);
+		}
+
+		@Override
+		KeyChain replace(T now, T with) {
+			throw newReplaceKeyException(now, this, with);
+		}
+		
+		@Override
+		public boolean isImmutable() {
+			return getOrCreateKeyChain(now(), target).isImmutable();
+		}
+		
+		@Override
+		public boolean isShared() {
+			return getOrCreateKeyChain(now(), target).isShared();
+		}
+		
+		@Override
+		public String toString() {
+			return "DelegatingKeyChain(" + target + "->" + keyChain.get(target) + ")";
 		}
 	}
 	
@@ -218,6 +291,16 @@ public abstract class Permissions<T> {
 		}
 		
 		@Override
+		public boolean isImmutable() {
+			return true;
+		}
+		
+		@Override
+		public boolean isShared() {
+			return false;
+		}
+		
+		@Override
 		public String toString() {
 			return "ImmutableKey";
 		}
@@ -248,6 +331,16 @@ public abstract class Permissions<T> {
 		@Override
 		public void checkWrite(T now, Object o) {
 			//write always OK
+		}
+		
+		@Override
+		public boolean isImmutable() {
+			return false;
+		}
+		
+		@Override
+		public boolean isShared() {
+			return true;
 		}
 		
 		@Override
@@ -303,23 +396,48 @@ public abstract class Permissions<T> {
 	}
 	/**
 	 * now must own the slave; then slave's keychain is replaces with the master keychain
+	 * the master's key chain must not have been linked to anybody or we throw an exception
 	 * @param master
 	 * @param slave
 	 * @throws KeyChainException
 	 */
+	@SuppressWarnings("unchecked")
 	public void linkKeychains(Object master, Object slave) throws KeyChainException {	
 		//check that o is not a key for key to avoid cycles in the key chains
 		KeyChain masterKey;
 		KeyChain slaveKey;
+		KeyChain newKey;
 		T now = now();
 		
 		do {
 			masterKey = getOrCreateKeyChain(now, master);
 			slaveKey = getOrCreateKeyChain(now, slave);			
-			if(! slaveKey.isOwnedBy(now)) {
+			if(! slaveKey.isOwnedBy(now) || (masterKey instanceof Permissions.DelegatingKeyChain)) {
 				throw newLinkKeychainsException(now, masterKey, slaveKey);
 			}
-		} while(! keyChain.replace(slave, slaveKey, masterKey));
+			newKey = new DelegatingKeyChain(master);
+		} while(! keyChain.replace(slave, slaveKey, newKey));
+	}
+	
+	/**
+	 * now must be owner of slave and slave must have been linked to somebody else before
+	 * then slave will get its own keychain again with now as the owner
+	 * 
+	 */
+	@SuppressWarnings("unchecked")
+	public void unlinkKeychains(Object slave) {
+		//check that o is not a key for key to avoid cycles in the key chains
+		KeyChain slaveKey;
+		KeyChain newKey;
+		T now = now();
+		
+		do {
+			slaveKey = keyChain.get(slave);	
+			if(slave == null || ! (slaveKey instanceof Permissions.DelegatingKeyChain) || ! slaveKey.isOwnedBy(now)) {
+				throw newUnlinkKeychainsException(now, slaveKey);
+			}
+			newKey = new SingleKeyChain(now);
+		} while(! keyChain.replace(slave, slaveKey, newKey));
 	}
 		
 	/**
@@ -363,7 +481,7 @@ public abstract class Permissions<T> {
 	}
 		
 	public boolean isImmutable(Object o) {
-		return keyChain.get(o) == immutableKey;
+		return getOrCreateKeyChain(now(), o).isImmutable();
 	}
 	
 	public void makeImmutable(Object o) throws KeyChainException  {
@@ -378,7 +496,7 @@ public abstract class Permissions<T> {
 	}
 	
 	public boolean isShared(Object o) {
-		return keyChain.get(o) == sharedKey;
+		return getOrCreateKeyChain(now(), o).isShared();
 	}
 	
 	public synchronized void makeShared(Object o) throws KeyChainException  {
