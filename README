@@ -1,0 +1,63 @@
+TOP stands for Tasks, Orderings, and Permissions.
+
+TOP is a framework for parallel programming and consists of the three above concepts. Tasks are lightweight threads of execution that can be ordered with happens-before relationships. What tasks can access what objects is defined by permissions. 
+
+Note: In a perfect world we would have special keywords or language constructs for expressing tasks and permissions. Because we embed with standard Java, however, we have to piggyback on the Java syntax as good as possible.
+
+**************
+Tasks
+**************
+A task is a lightweight thread with explicit happens-before relationships. If we extended the Java syntax you would write something like:
+
+Task fooTask = schedule bar.taskMethod(param1, param2);
+
+In reality, however, you have to write:
+
+Task fooTask = new Task();
+this.topTask_taskMethod(fooTask, param1, param2);
+
+There are only two (or three) requirements. 
+
+1) a task method must follow the naming convention topTask_XYZ(Task now, ...). That is, its name must be prefixed with topTask_ and its first parameter must be a Task object representing "now".
+
+2) The "now" task object must be a fresh object for each scheduling of a task method. So this is forbidden:
+Task fTask = new Task();
+this.topTask_task1(fTask);
+this.topTask_task2(fTask); //do not reuse fTask!!!
+
+Here are some more syntactic examples:
+
+obj.topTask_blubb(new Task(), ...) //if we don't need a reference to the new task
+
+Task blubbTask;
+obj.topTask_blubb(blubbTask = new Task(), ...) //if we want to emphasize to what task method the task object belongs to
+
+**************
+Orderings
+**************
+A schedule is a partial ordering of tasks. That is, tasks are ordered by happens-before relationships. Whenever all preceding tasks T_p of a task t are done (that is, all tasks T_p that are specified to happen-before t: T_p -*-> t) the scheduler can run t.
+
+You can order tasks like so:
+
+Task t1 = new Task();
+obj.topTask_taskMethod1(t1, ...);
+
+Task t2 = new Task();
+obj.topTask_taskMethod2(t2, ...); 
+
+t1.hb(t2); //now, t1->t2 and t2 is suspended at least until t1 is done
+
+**************
+Permissions
+**************
+Permissions come in the form of keychains. Each object has an associated keychain that contains one or more tasks. If a task can only write an object if it's the only member in the keychain. All tasks that are in the keychain can read an object, however.
+
+Keychains are managed explicitly by the programmer and are dynamic constructs. You can grant another task read access to an object o, for example, by calling Permissions.perm.addTask(o, otherTask). The current task must have at least read permission on o.
+
+A task cannot directly be removed from a keychain; instead, a task can give up its permission and hand it over to another task by calling Permissions.perm.replaceNowWithTask(o, otherTask). If the current task was the only member in the keychain then otherTask is now the sole owner of o. If there were other tasks in the keychain then otherTask has read access now. In any case, the current task was removed from the keychain and does not have any access rights on o.
+
+The keychains of two objects can be linked together by calling Permissions.perm.linkKeychains(master, slave). The current task must be the sole member in slave's keychain. Slave's keychain is then replaced with master's keychain; the current task's access rights on slave are then the same as its rights on master.
+
+An object can be made immutable by calling Permissions.perm.makeImmutable(o). Onece an object is immutable, all tasks can read it and no task can write it. An immutable object cannot be made mutable again.
+
+Similarly, an object can be shared. Every task can read and write a shared object. Shared objects should only be used rarely when absolutely necessary. Task ordering and immutability should be preferred. Once an object was made shared by calling Permissions.perm.makeShared(o) it cannot be made un-shared again. Make sure you properly synchronize accesses to shared objects.
