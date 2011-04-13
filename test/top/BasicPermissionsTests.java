@@ -47,8 +47,7 @@ public class BasicPermissionsTests {
 	}
 	
 	@Test
-	public void testMultipleReaders() {
-		
+	public void testMultipleReaders() {		
 		Thread task1 = new Thread();
 		Thread task2 = new Thread();
 		

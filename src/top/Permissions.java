@@ -18,10 +18,10 @@ public abstract class Permissions<T> {
 	 * returns the global instance of the KeyChain; for now we only support Threads
 	 * but that may change
 	 */
-	public static final Permissions<Thread> perm = new Permissions<Thread>() {
+	public static final Permissions<Task> perm = new Permissions<Task>() {
 		@Override
-		public Thread now() {
-			return Thread.currentThread();
+		public Task now() {
+			return Task.now();
 		}
 	};
 	

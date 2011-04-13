@@ -616,6 +616,7 @@ implements ConcurrentMap<K, V>, Serializable {
 	 *
 	 * @return <tt>true</tt> if this map contains no key-value mappings
 	 */
+	@Override
 	public boolean isEmpty() {
 		final Segment<K,V>[] segments = this.segments;
 		/*
@@ -655,6 +656,7 @@ implements ConcurrentMap<K, V>, Serializable {
 	 *
 	 * @return the number of key-value mappings in this map
 	 */
+	@Override
 	public int size() {
 		final Segment<K,V>[] segments = this.segments;
 		long sum = 0;
@@ -708,6 +710,7 @@ implements ConcurrentMap<K, V>, Serializable {
 	 *
 	 * @throws NullPointerException if the specified key is null
 	 */
+	@Override
 	public V get(Object key) {
 		int hash = hash(key);
 		return segmentFor(hash).get(key, hash);
@@ -722,6 +725,7 @@ implements ConcurrentMap<K, V>, Serializable {
 	 *         <tt>equals</tt> method; <tt>false</tt> otherwise.
 	 * @throws NullPointerException if the specified key is null
 	 */
+	@Override
 	public boolean containsKey(Object key) {
 		int hash = hash(key);
 		return segmentFor(hash).containsKey(key, hash);
@@ -738,6 +742,7 @@ implements ConcurrentMap<K, V>, Serializable {
 	 *         specified value
 	 * @throws NullPointerException if the specified value is null
 	 */
+	@Override
 	public boolean containsValue(Object value) {
 		if (value == null)
 			throw new NullPointerException();
@@ -749,10 +754,8 @@ implements ConcurrentMap<K, V>, Serializable {
 
 		// Try a few times without locking
 		for (int k = 0; k < RETRIES_BEFORE_LOCK; ++k) {
-			int sum = 0;
 			int mcsum = 0;
 			for (int i = 0; i < segments.length; ++i) {
-				int c = segments[i].count;
 				mcsum += mc[i] = segments[i].modCount;
 				if (segments[i].containsValue(value))
 					return true;
@@ -760,7 +763,6 @@ implements ConcurrentMap<K, V>, Serializable {
 			boolean cleanSweep = true;
 			if (mcsum != 0) {
 				for (int i = 0; i < segments.length; ++i) {
-					int c = segments[i].count;
 					if (mc[i] != segments[i].modCount) {
 						cleanSweep = false;
 						break;
@@ -820,6 +822,7 @@ implements ConcurrentMap<K, V>, Serializable {
 	 *         <tt>null</tt> if there was no mapping for <tt>key</tt>
 	 * @throws NullPointerException if the specified key or value is null
 	 */
+	@Override
 	public V put(K key, V value) {
 		if (value == null)
 			throw new NullPointerException();
@@ -848,6 +851,7 @@ implements ConcurrentMap<K, V>, Serializable {
 	 *
 	 * @param m mappings to be stored in this map
 	 */
+	@Override
 	public void putAll(Map<? extends K, ? extends V> m) {
 		for (Map.Entry<? extends K, ? extends V> e : m.entrySet())
 			put(e.getKey(), e.getValue());
@@ -862,6 +866,7 @@ implements ConcurrentMap<K, V>, Serializable {
 	 *         <tt>null</tt> if there was no mapping for <tt>key</tt>
 	 * @throws NullPointerException if the specified key is null
 	 */
+	@Override
 	public V remove(Object key) {
 		int hash = hash(key);
 		return segmentFor(hash).remove(key, hash, null);
@@ -908,6 +913,7 @@ implements ConcurrentMap<K, V>, Serializable {
 	/**
 	 * Removes all of the mappings from this map.
 	 */
+	@Override
 	public void clear() {
 		for (int i = 0; i < segments.length; ++i)
 			segments[i].clear();
@@ -929,6 +935,7 @@ implements ConcurrentMap<K, V>, Serializable {
 	 * construction of the iterator, and may (but is not guaranteed to)
 	 * reflect any modifications subsequent to construction.
 	 */
+	@Override
 	public Set<K> keySet() {
 		Set<K> ks = keySet;
 		return (ks != null) ? ks : (keySet = new KeySet());
@@ -950,6 +957,7 @@ implements ConcurrentMap<K, V>, Serializable {
 	 * construction of the iterator, and may (but is not guaranteed to)
 	 * reflect any modifications subsequent to construction.
 	 */
+	@Override
 	public Collection<V> values() {
 		Collection<V> vs = values;
 		return (vs != null) ? vs : (values = new Values());
@@ -971,6 +979,7 @@ implements ConcurrentMap<K, V>, Serializable {
 	 * construction of the iterator, and may (but is not guaranteed to)
 	 * reflect any modifications subsequent to construction.
 	 */
+	@Override
 	public Set<Map.Entry<K,V>> entrySet() {
 		Set<Map.Entry<K,V>> es = entrySet;
 		return (es != null) ? es : (entrySet = new EntrySet());
@@ -1090,6 +1099,7 @@ implements ConcurrentMap<K, V>, Serializable {
 		 * removed in which case the put will re-establish). We do not
 		 * and cannot guarantee more.
 		 */
+		@Override
 		public V setValue(V value) {
 			if (value == null) throw new NullPointerException();
 			V v = super.setValue(value);
@@ -1109,58 +1119,72 @@ implements ConcurrentMap<K, V>, Serializable {
 	}
 
 	final class KeySet extends AbstractSet<K> {
+		@Override
 		public Iterator<K> iterator() {
 			return new KeyIterator();
 		}
+		@Override
 		public int size() {
 			return ConcurrentIdentityHashMap.this.size();
 		}
+		@Override
 		public boolean contains(Object o) {
 			return ConcurrentIdentityHashMap.this.containsKey(o);
 		}
+		@Override
 		public boolean remove(Object o) {
 			return ConcurrentIdentityHashMap.this.remove(o) != null;
 		}
+		@Override
 		public void clear() {
 			ConcurrentIdentityHashMap.this.clear();
 		}
 	}
 
 	final class Values extends AbstractCollection<V> {
+		@Override
 		public Iterator<V> iterator() {
 			return new ValueIterator();
 		}
+		@Override
 		public int size() {
 			return ConcurrentIdentityHashMap.this.size();
 		}
+		@Override
 		public boolean contains(Object o) {
 			return ConcurrentIdentityHashMap.this.containsValue(o);
 		}
+		@Override
 		public void clear() {
 			ConcurrentIdentityHashMap.this.clear();
 		}
 	}
 
 	final class EntrySet extends AbstractSet<Map.Entry<K,V>> {
+		@Override
 		public Iterator<Map.Entry<K,V>> iterator() {
 			return new EntryIterator();
 		}
+		@Override
 		public boolean contains(Object o) {
-			if (!(o instanceof Map.Entry))
+			if (!(o instanceof Map.Entry<?,?>))
 				return false;
 			Map.Entry<?,?> e = (Map.Entry<?,?>)o;
 			V v = ConcurrentIdentityHashMap.this.get(e.getKey());
 			return v != null && v == e.getValue();
 		}
+		@Override
 		public boolean remove(Object o) {
-			if (!(o instanceof Map.Entry))
+			if (!(o instanceof Map.Entry<?,?>))
 				return false;
 			Map.Entry<?,?> e = (Map.Entry<?,?>)o;
 			return ConcurrentIdentityHashMap.this.remove(e.getKey(), e.getValue());
 		}
+		@Override
 		public int size() {
 			return ConcurrentIdentityHashMap.this.size();
 		}
+		@Override
 		public void clear() {
 			ConcurrentIdentityHashMap.this.clear();
 		}
@@ -1204,6 +1228,7 @@ implements ConcurrentMap<K, V>, Serializable {
 	 * stream (i.e., deserialize it).
 	 * @param s the stream
 	 */
+	@SuppressWarnings("unchecked")
 	private void readObject(java.io.ObjectInputStream s)
 	throws IOException, ClassNotFoundException  {
 		s.defaultReadObject();

@@ -22,7 +22,7 @@ public final class Task extends RecursiveAction {
 	static AtomicInteger numTasksScheduled;
 	
 	//the task that is currently executing in this thread
-	static final ThreadLocal<Task> Now = new ThreadLocal<Task>();
+	private static final ThreadLocal<Task> Now = new ThreadLocal<Task>();
 	
 	/*
 	 * 
@@ -32,6 +32,9 @@ public final class Task extends RecursiveAction {
 	private Object[] params;
 	private volatile AtomicReference<Object> result;
 	
+	public static final Task now() {
+		return Now.get();
+	}
 	/*
 	 * States: 
 	 * during init: retainCount == 0
@@ -69,7 +72,7 @@ public final class Task extends RecursiveAction {
 	void scheduleAsNormalTask(Object receiver, String taskName, Object... params) {
 		init_unsynchronized(receiver, taskName, params);
 		Task now = Now.get();
-		assert(now != null) : "no 'now' task found!!!";
+		assert(now != null) : "no 'now' task found! Maybe you didn't start a root topMainTask_ ?";
 		now.retain_unsynchronized(this);
 		
 		//if(DEBUG)
