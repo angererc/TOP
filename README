@@ -2,8 +2,6 @@ TOP stands for Tasks, Orderings, and Permissions.
 
 TOP is a framework for parallel programming and consists of the three above concepts. Tasks are lightweight threads of execution that can be ordered with happens-before relationships. What tasks can access what objects is defined by permissions. 
 
-Note: In a perfect world we would have special keywords or language constructs for expressing tasks and permissions. Because we embed with standard Java, however, we have to piggyback on the Java syntax as good as possible.
-
 **************
 Tasks
 **************
@@ -16,7 +14,7 @@ In reality, however, you have to write:
 Task fooTask = new Task();
 this.topTask_taskMethod(fooTask, param1, param2);
 
-There are only two (or three) requirements. 
+There are two requirements for correctly scheduling a task (which would be guaranteed by a hypothetical compiler but since we don't have one you have to do that):
 
 1) a task method must follow the naming convention topTask_XYZ(Task now, ...). That is, its name must be prefixed with topTask_ and its first parameter must be a Task object representing "now".
 
@@ -56,7 +54,7 @@ Keychains are managed explicitly by the programmer and are dynamic constructs. Y
 
 A task cannot directly be removed from a keychain; instead, a task can give up its permission and hand it over to another task by calling Permissions.perm.replaceNowWithTask(o, otherTask). If the current task was the only member in the keychain then otherTask is now the sole owner of o. If there were other tasks in the keychain then otherTask has read access now. In any case, the current task was removed from the keychain and does not have any access rights on o.
 
-The keychains of two objects can be linked together by calling Permissions.perm.linkKeychains(master, slave). The current task must be the sole member in slave's keychain. Slave's keychain is then replaced with master's keychain; the current task's access rights on slave are then the same as its rights on master.
+The keychains of two objects can be linked together by calling Permissions.perm.linkKeychains(master, slave). The current task must be the sole member in slave's keychain. Slave's keychain is then the same as master's keychain; therefore, the current task's access rights on slave are the same as its rights on master.
 
 An object can be made immutable by calling Permissions.perm.makeImmutable(o). Onece an object is immutable, all tasks can read it and no task can write it. An immutable object cannot be made mutable again.
 
