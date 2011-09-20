@@ -30,7 +30,7 @@ public final class Task extends RecursiveAction {
 	private Object receiver;
 	private Method method;
 	private Object[] params;
-	private volatile AtomicReference<Object> result;
+	private volatile Object result;
 	
 	public static final Task now() {
 		return Now.get();
@@ -180,13 +180,15 @@ public final class Task extends RecursiveAction {
 	}
 	
 	public Object result() {
-		return result.get();
+		return result;
 	}
 
-	public void setResult(Object value) {
-		if(! result.compareAndSet(null, value)) {
-			throw new RuntimeException("Result value of task " + this + " has been already set. Old value: " + result.get() + ", new value: " + value);
+	public synchronized void setResult(Object value) {
+		if(result != null) {
+			throw new RuntimeException("Result value of task " + this + " has been already set. Old value: " + result + ", new value: " + value);
 		}
+		
+		result = value;		
 	}
 
 	public boolean isAboutToExecute() {

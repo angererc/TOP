@@ -7,11 +7,13 @@ package hedc.top.hedc;
  * @author Christoph von Praun
  */
 
+import java.text.ParseException;
 import java.util.*;
 import java.io.*;
 
 import top.Task;
 import hedc.ethz.util.*;
+import static top.Permissions.perm;
 
 public class Tester {
 
@@ -45,8 +47,6 @@ public class Tester {
 
 	public static void main(String[] args) throws Exception {
 		Messages.debug(0, "Tester::main - starting HEDC metasearch.");
-		msi_ = MetaSearchImpl.getUniqueInstance();
-		randomDate_ = new RandomDate(TES_START_, TES_END_);
 		
 		new Driver().topMainTask_begin(new Task());
 				
@@ -67,7 +67,12 @@ public class Tester {
 	}
 
 	public static class Driver {
-		public void topMainTask_begin(Task now) {
+		public void topMainTask_begin(Task now) throws ParseException {
+			perm.newObject(MetaSearchImpl.class);
+
+			msi_ = MetaSearchImpl.getUniqueInstance();
+			randomDate_ = new RandomDate(TES_START_, TES_END_);
+			
 			Task laterTask = new Task();
 			this.topTask_end(laterTask);
 			
@@ -75,6 +80,7 @@ public class Tester {
 				try {
 					Messages.debug(0, "Tester::main - creating tester thread %1.", String.valueOf(i));
 					Task nextTask = new Task();
+					perm.addTask(msi_, nextTask);
 					new Tester("thread" + i + ".log", TES_PAUSE_, TES_ITERATIONS_).topTask_run(nextTask, laterTask);	
 					
 					nextTask.hb(laterTask);
@@ -96,13 +102,17 @@ public class Tester {
 		
 		Task iterationTask = new Task();
 		this.topTask_iteration(iterationTask, later);
+		perm.replaceNowWithTask(msi_, iterationTask);
 		iterationTask.hb(later);		
 	}
 		
-	public void topTask_writeResult(Task now, MetaSearchRequest m) throws IOException {
+	public void topTask_writeResult(Task now, Task later, MetaSearchRequest m) throws IOException {
 		System.out.println("Writing result");
 		iterations_--;
-		fw_.write("OK: " + m.printResults() + "\n");		
+		fw_.write("OK: " + m.printResults() + "\n");
+		
+		perm.replaceNowWithTask(m, later);
+		perm.replaceNowWithTask(msi_, later);
 	}
 
 	public void topTask_iteration(Task now, Task later) {		
@@ -117,15 +127,21 @@ public class Tester {
 				parameters.put("RAG", TES_RAG_);
 				parameters.put("WAIT_TIME", TES_WAIT_TIME_);
 				parameters.put("DATETIME", randomDate_.nextString());
-				MetaSearchRequest m = new MetaSearchRequest(null, msi_, parameters);
-
+				
 				Task goTask = new Task();
-				m.topTask_go(goTask);
-				
 				Task writeTask = new Task();
-				this.topTask_writeResult(writeTask, m);
-				
 				Task nextIteration = new Task();
+				
+				MetaSearchRequest m = new MetaSearchRequest(null, msi_, parameters);
+				//go task				
+				perm.replaceNowWithTask(m, goTask);
+				perm.replaceNowWithTask(msi_, goTask);				
+				m.topTask_go(goTask, writeTask);
+				
+				//write task; go forwards its permissions for m and msi_ 
+				this.topTask_writeResult(writeTask, nextIteration, m);
+				
+				//nextIteration task; write task forwards its permissions for m and msi_
 				this.topTask_iteration(nextIteration, later);
 				
 				goTask.hb(writeTask);
@@ -133,6 +149,7 @@ public class Tester {
 				nextIteration.hb(later);
 				
 			} catch (Exception e) {
+				e.printStackTrace();
 				iterations_--;
 				try {
 					fw_.write("BROKEN: - exception=" + e + "\n");
