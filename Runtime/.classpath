@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="Shared/benchmarks/Erco"/>
+	<classpathentry kind="src" path="Shared/src"/>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="src" path="test"/>
+	<classpathentry kind="lib" path="Shared/libs/javassist.jar"/>
+	<classpathentry kind="lib" path="Shared/libs/jsr166y.jar"/>
+	<classpathentry kind="lib" path="Shared/libs/top_runtime.jar"/>
+	<classpathentry kind="lib" path="Shared/libs/trove-3.0.0a1.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/4"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
