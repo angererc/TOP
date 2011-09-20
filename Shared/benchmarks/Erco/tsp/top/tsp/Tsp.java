@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.StringTokenizer;
 
 import top.Task;
+import static top.Permissions.perm;
 
 public class Tsp {
 	
@@ -35,14 +36,21 @@ public class Tsp {
 	}
 
 	public void topMainTask_solve(Task now, Config config) {
-		new TspSolver(config).topTask_run(new Task());
+		perm.newObject(config);
+		TourElement first = new TourElement(config.startNode);
+		config.enqueue(first);
+		
+		Task solverTask = new Task();
+		TspSolver solver = perm.newObject(new TspSolver(config));
+		solver.topTask_run(solverTask);
+		
+		perm.addTask(config, solverTask);
+		perm.replaceNowWithTask(solver, solverTask);
 	}
 	
 	public Result solve(String fname) throws IOException 
 	{
 		final Config config = loadConfig(fname);
-		TourElement first = new TourElement(config.startNode);
-		config.enqueue(first);
 		
 		this.topMainTask_solve(new Task(), config);
 				

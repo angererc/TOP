@@ -3,6 +3,7 @@ package tsp.top.tsp;
 import java.util.BitSet;
 
 import top.Task;
+import static top.Permissions.perm;
 
 public class TspSolver {
 	
@@ -18,8 +19,12 @@ public class TspSolver {
 	}
 
 	public void topTask_run(Task now) {
-		TourElement curr = config.getTour();
 		
+		perm.checkRead(this);
+		TourElement curr = config.getTour();
+	
+		perm.checkRead(curr);
+		perm.checkRead(config);
 		if (curr.length < (config.numNodes - config.nodesFromEnd - 1))
 			/* Solve in parallel. */
 			/*
@@ -34,6 +39,7 @@ public class TspSolver {
 				 * node in graph and 3. Weight of new partial tour is less
 				 * than cur min.
 				 */
+				perm.checkRead(config.weights);
 				final int wt = config.weights[curr.node][i];
 				boolean t1 = !curr.visited(i); 
 				boolean t2 = (wt != 0);
@@ -49,7 +55,11 @@ public class TspSolver {
 					
 					config.enqueue(newTour);
 					
-					new TspSolver(config).topTask_run(new Task());				
+					Task solveTask = new Task();
+					TspSolver solver = new TspSolver(config);
+					solver.topTask_run(solveTask);			
+					perm.replaceNowWithTask(perm.newObject(solver), solveTask);
+					perm.addTask(config, solveTask);
 				}
 			}
 		else
@@ -69,6 +79,10 @@ public class TspSolver {
 		 * give some vertex degree 3.
 		 */
 
+		perm.checkRead(this);
+		perm.checkRead(config);
+		perm.checkRead(config.weights);
+		perm.checkRead(newTour);
 		int mstWeight = 0;
 		for (int i = 0; i < config.numNodes; i++) {
 			if(newTour.visited(i)) continue;
@@ -110,16 +124,23 @@ public class TspSolver {
 	}
 
 	private void solveTour(TourElement curr) {
+		perm.checkRead(curr);
+		perm.checkRead(config);
+		perm.checkWrite(this);
+		
 		curDist = curr.prefixWeight;
 		pathLen = curr.length;
-		visited = new BitSet(config.numNodes);
-		path = new int[config.numNodes+1];
+		visited = perm.newObject(new BitSet(config.numNodes));
+		path = perm.newObject(new int[config.numNodes+1]);
 		
 //		StringBuilder sb = new StringBuilder("SolveTour:");
 		
+		perm.checkWrite(path);
 		TourElement p = curr;
 		for (int i = pathLen - 1; i >= 0; i--) {
 //			sb.append(String.format(" %d", p.node));
+			perm.checkRead(p);
+			perm.checkWrite(visited);
 			path[i] = p.node;
 			visited.set(p.node);
 			p = p.previous;			
@@ -141,6 +162,12 @@ public class TspSolver {
 		int i;
 		int dist, last;
 
+		perm.checkWrite(this);
+		perm.checkWrite(visited);
+		perm.checkRead(config);
+		perm.checkRead(config.weights);
+		perm.checkWrite(path);
+		
 		for (i = 1; i < config.numNodes; i++) {
 			if (visited.get(i))
 				continue; /* Already visited. */

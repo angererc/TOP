@@ -8,6 +8,8 @@ package tsp.top.tsp;
  * @author Florian Schneider
  */
 
+import static top.Permissions.perm;
+
 public class TourElement 
 implements Comparable<TourElement>
 {
@@ -22,14 +24,17 @@ implements Comparable<TourElement>
 		this.node = node;
 		this.length = 1;		
 		this.visited = (1 << node);
+		perm.makeImmutable(perm.newObject(this));
 	}
 	
 	public boolean visited(int i) {
+		perm.checkRead(this);
 		return (visited & (1 << i)) != 0;
 	}
 	
 	@Override
 	public int compareTo(TourElement o) {
+		perm.checkRead(this);
 		return lowerBound - o.lowerBound; // XXX
 	}
 }
