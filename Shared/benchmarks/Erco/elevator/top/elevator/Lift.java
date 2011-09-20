@@ -10,6 +10,7 @@ package elevator.top.elevator;
 import java.util.*;
 
 import top.Task;
+import static top.Permissions.perm;
 
 // class that implements the elevator threads
 public class Lift {
@@ -39,6 +40,7 @@ public class Lift {
 	// c is a reference to the shared control object
 	// The thread starts itself
 	public Lift(int numFloors, Controls c) {
+		perm.newObject(this);
 		this.name = "Lift " + count++;
 		controls = c;
 		firstFloor = 1;
@@ -46,7 +48,10 @@ public class Lift {
 		travelDir = IDLE;
 		currentFloor = firstFloor;
 		pickupOn = new int[numFloors + 1];
+		perm.linkKeychains(this, perm.newObject(pickupOn));
+		
 		peopleFor = new int[numFloors + 1];
+		perm.linkKeychains(this, perm.newObject(peopleFor));
 		for (int i = 0; i <= numFloors; i++) {
 			pickupOn[i] = IDLE;
 			peopleFor[i] = 0;
@@ -58,7 +63,10 @@ public class Lift {
 	}
 
 	public void topTask_begin(Task now) {
-		this.topTask_nextRound(new Task());
+		Task next = new Task();
+		this.topTask_nextRound(next);
+		perm.replaceNowWithTask(this, next);
+		perm.replaceNowWithTask(controls.floors, next);
 	}
 	
 	// Body of the thread. If the elevator is idle, it checks for calls
@@ -73,7 +81,9 @@ public class Lift {
 			} catch (InterruptedException e) {
 			}
 			Task idleTask = new Task();
-			this.topTask_doIdle(idleTask);
+			this.topTask_doIdle(idleTask, nextRoundTask);
+			perm.replaceNowWithTask(this, idleTask);
+			perm.replaceNowWithTask(controls.floors, idleTask);
 			
 			idleTask.hb(nextRoundTask);
 		} else {
@@ -83,7 +93,10 @@ public class Lift {
 			}
 			
 			Task movingTask = new Task();
-			this.topTask_doMoving(movingTask);
+			this.topTask_doMoving(movingTask, nextRoundTask);
+			perm.replaceNowWithTask(this, movingTask);
+			perm.replaceNowWithTask(controls.floors, movingTask);
+			
 			movingTask.hb(nextRoundTask);
 		}		
 	}
@@ -91,11 +104,12 @@ public class Lift {
 	// IDLE
 	// First check to see if there is an up or down call on what ever floor
 	// the elevator is idle on. If there isn't one, then check the other floors.
-	public void topTask_doIdle(Task now) {
+	public void topTask_doIdle(Task now, Task later) {
 		
 		boolean foundFloor = false;
 		int targetFloor = -1;
 
+		perm.checkWrite(this);
 		if (controls.claimUp(getName(), currentFloor)) {
 			// System.out.println("Lift::doIdle - could claim upcall on current floor");
 			// // CARE
@@ -114,6 +128,7 @@ public class Lift {
 
 		// System.out.println("Lift::doIdle - lookuing for calls on other floors");
 		// // CARE
+		perm.checkWrite(pickupOn);
 		for (int floor = firstFloor; !foundFloor && floor <= lastFloor; floor++) {
 			// System.out.println("Lift::doIdle - checking floor " + floor); //
 			// CARE
@@ -138,14 +153,19 @@ public class Lift {
 			System.out.println(getName() + " is now moving "
 					+ ((travelDir == UP) ? "UP" : "DOWN"));
 		}
+		
+		perm.replaceNowWithTask(this, later);
+		perm.replaceNowWithTask(controls.floors, later);
 	}
 
 	// MOVING
 	// First change floor (up or down as appropriate)
 	// Drop off passengers if we have to
 	// Then pick up passengers if we have to
-	public void topTask_doMoving(Task now) {
-				
+	public void topTask_doMoving(Task now, Task later) {
+		perm.checkWrite(this);
+		perm.checkWrite(peopleFor);
+		perm.checkWrite(pickupOn);
 		currentFloor += (travelDir == UP) ? 1 : -1;
 		int oldDir = travelDir;
 
@@ -229,12 +249,18 @@ public class Lift {
 			else if (travelDir == DOWN)
 				System.out.println(" changing to DOWN");
 		}
+		
+		perm.replaceNowWithTask(this, later);
+		perm.replaceNowWithTask(controls.floors, later);
 	}
 
 	// Returns true if there are passengers in the elevator who want to stop
 	// on a floor above currentFloor, or we claimed a call on a floor below
 	// currentFloor
 	private boolean stopsAbove() {
+		perm.checkRead(this);
+		perm.checkRead(pickupOn);
+		perm.checkRead(peopleFor);
 		boolean above = false;
 		for (int i = currentFloor + 1; !above && i <= lastFloor; i++)
 			above = (pickupOn[i] != IDLE) || (peopleFor[i] != 0);
@@ -245,6 +271,9 @@ public class Lift {
 	// on a floor below currentFloor, or we claiemda call on a floor above
 	// currentFloor
 	private boolean stopsBelow() {
+		perm.checkRead(this);
+		perm.checkRead(pickupOn);
+		perm.checkRead(peopleFor);
 		boolean below = false;
 		for (int i = currentFloor - 1; !below && (i >= firstFloor); i--)
 			below = (pickupOn[i] != IDLE) || (peopleFor[i] != 0);
@@ -254,6 +283,8 @@ public class Lift {
 	// Updates peopleFor based on the Vector of destination floors received
 	// from the control object
 	private void addPeople(Vector<?> people) {
+		perm.checkRead(people);
+		perm.checkWrite(peopleFor);
 		System.out.println(getName() + " picking up " + people.size()
 				+ " passengers on " + currentFloor);
 		for (Enumeration<?> e = people.elements(); e.hasMoreElements();) {

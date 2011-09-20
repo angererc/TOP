@@ -10,10 +10,11 @@ package elevator.top.elevator;
 import java.lang.*;
 import java.util.*;
 import java.io.*;
+import static top.Permissions.perm;
 
 // class of the shared control object
 class Controls {
-	private Floor[] floors;
+	Floor[] floors;
 	private boolean terminated;
 
 	public Controls(int numFloors) {
@@ -23,34 +24,44 @@ class Controls {
 	}
 	
 	public synchronized void setTerminated() {
+		perm.checkWrite(this);
 		terminated = true;
 	}
 	
 	public synchronized boolean terminated() {
+		perm.checkRead(this);
 		return terminated;
 	}
 
 	// this is called to inform the control object of a down call on floor
 	// onFloor
 	public void pushDown(int onFloor, int toFloor) {
+		perm.checkRead(floors);
 		synchronized (floors[onFloor]) {
 			System.out.println("*** Someone on floor " + onFloor
 					+ " wants to go to " + toFloor);
+			perm.checkWrite(floors[onFloor].downPeople);
 			floors[onFloor].downPeople.addElement(new Integer(toFloor));
-			if (floors[onFloor].downPeople.size() == 1)
+			if (floors[onFloor].downPeople.size() == 1) {
+				perm.checkWrite(floors[onFloor]);
 				floors[onFloor].downFlag = false;
+			}
 		}
 	}
 
 	// this is called to inform the control object of an up call on floor
 	// onFloor
 	public void pushUp(int onFloor, int toFloor) {
+		perm.checkRead(floors);
 		synchronized (floors[onFloor]) {
 			System.out.println("*** Someone on floor " + onFloor
 					+ " wants to go to " + toFloor);
+			perm.checkWrite(floors[onFloor].upPeople);
 			floors[onFloor].upPeople.addElement(new Integer(toFloor));
-			if (floors[onFloor].upPeople.size() == 1)
+			if (floors[onFloor].upPeople.size() == 1) {
+				perm.checkWrite(floors[onFloor]);
 				floors[onFloor].upFlag = false;
+			}
 		}
 	}
 
@@ -60,7 +71,9 @@ class Controls {
 	// False if the call was already claimed (upFlag was already true)
 	public boolean claimUp(String lift, int floor) {
 		if (checkUp(floor)) {
+			perm.checkRead(floors);
 			synchronized (floors[floor]) {
+				perm.checkWrite(floors[floor]);
 				if (!floors[floor].upFlag) {
 					floors[floor].upFlag = true;
 					return true;
@@ -76,7 +89,9 @@ class Controls {
 	// False if the call was already claimed (downFlag was already true)
 	public boolean claimDown(String lift, int floor) {
 		if (checkDown(floor)) {
+			perm.checkRead(floors);
 			synchronized (floors[floor]) {
+				perm.checkWrite(floors[floor]);
 				if (!floors[floor].downFlag) {
 					floors[floor].downFlag = true;
 					return true;
@@ -91,7 +106,10 @@ class Controls {
 	// floor, checkUp() will return false. This prevents an elevator from
 	// wasting its time trying to claim a call that has already been claimed
 	public boolean checkUp(int floor) {
+		perm.checkRead(floors);
 		synchronized (floors[floor]) {
+			perm.checkRead(floors[floor]);
+			perm.checkRead(floors[floor].upPeople);
 			boolean ret = floors[floor].upPeople.size() != 0;
 			ret = ret && !floors[floor].upFlag;
 			return ret;
@@ -103,7 +121,9 @@ class Controls {
 	// floor, checkUp() will return false. This prevents an elevator from
 	// wasting its time trying to claim a call that has already been claimed
 	public boolean checkDown(int floor) {
+		perm.checkRead(floors);
 		synchronized (floors[floor]) {
+			perm.checkRead(floors[floor]);
 			boolean ret = floors[floor].downPeople.size() != 0;
 			ret = ret && !floors[floor].downFlag;
 			return ret;
@@ -115,9 +135,12 @@ class Controls {
 	// to which the people wish to travel. The floors vector and upFlag
 	// are reset.
 	public Vector getUpPeople(int floor) {
+		perm.checkRead(floors);
 		synchronized (floors[floor]) {
+			perm.checkWrite(floors[floor]);
 			Vector temp = floors[floor].upPeople;
 			floors[floor].upPeople = new Vector();
+			perm.linkKeychains(floors[floor], perm.newObject(floors[floor].upPeople));
 			floors[floor].upFlag = false;
 			return temp;
 		}
@@ -128,9 +151,12 @@ class Controls {
 	// to which the people wish to travel. The floors vector and downFlag
 	// are reset.
 	public Vector getDownPeople(int floor) {
+		perm.checkRead(floors);
 		synchronized (floors[floor]) {
+			perm.checkWrite(floors[floor]);
 			Vector temp = floors[floor].downPeople;
 			floors[floor].downPeople = new Vector();
+			perm.linkKeychains(floors[floor], perm.newObject(floors[floor].downPeople));
 			floors[floor].downFlag = false;
 			return temp;
 		}
